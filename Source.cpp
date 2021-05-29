@@ -1,6 +1,9 @@
 ﻿#pragma comment(linker,"\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "imm32.lib")
 
 #include <windows.h>
+#include <commctrl.h>
 
 #define DEFAULT_DPI 96
 #define SCALEX(X) MulDiv(X, uDpiX, DEFAULT_DPI)
@@ -8,6 +11,48 @@
 #define POINT2PIXEL(PT) MulDiv(PT, uDpiY, 72)
 
 TCHAR szClassName[] = TEXT("Window");
+
+WNDPROC HotKeyDefProc;
+
+WORD GetModifierKey()
+{
+	BYTE ModifierKey = 0;
+	if (GetKeyState(VK_SHIFT) & 0x8000)
+	{
+		ModifierKey |= HOTKEYF_SHIFT;
+	}
+	if (GetKeyState(VK_CONTROL) & 0x8000)
+	{
+		ModifierKey |= HOTKEYF_CONTROL;
+	}
+	if (GetKeyState(VK_MENU) & 0x8000)
+	{
+		ModifierKey |= HOTKEYF_ALT;
+	}
+	return ModifierKey;
+}
+
+LRESULT CALLBACK HotKeyProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_KEYDOWN:
+		switch (wParam)
+		{
+		case VK_RETURN:
+		case VK_TAB:
+		case VK_SPACE:
+		case VK_DELETE:
+		case VK_ESCAPE:
+			SendMessage(hWnd, HKM_SETHOTKEY, MAKEWORD(wParam, GetModifierKey()), 0);
+			return 0;
+		}
+		break;
+	default:
+		break;
+	}
+	return CallWindowProc(HotKeyDefProc, hWnd, msg, wParam, lParam);
+}
 
 BOOL GetScaling(HWND hWnd, UINT* pnX, UINT* pnY)
 {
@@ -61,8 +106,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	switch (msg)
 	{
 	case WM_CREATE:
+		InitCommonControls();
 		hHotKey = CreateWindowEx(WS_EX_CLIENTEDGE, TEXT("msctls_hotkey32"), 0, WS_VISIBLE | WS_CHILD, 0, 0, 0, 0, hWnd, 0, ((LPCREATESTRUCT)lParam)->hInstance, 0);
+		ImmAssociateContext(hHotKey, 0);
+		HotKeyDefProc = (WNDPROC)SetWindowLongPtr(hHotKey, GWLP_WNDPROC, (LONG_PTR)HotKeyProc);
 		SendMessage(hWnd, WM_APP, 0, 0);
+		break;
+	case WM_SETFOCUS:
+		SetFocus(hHotKey);
 		break;
 	case WM_SIZE:
 		MoveWindow(hHotKey, POINT2PIXEL(10), POINT2PIXEL(10), POINT2PIXEL(256), POINT2PIXEL(32), TRUE);
